@@ -1,0 +1,315 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<title>예약 관리 · 마르페 심리상담센터</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jua&family=Gowun+Dodum&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="index.html">
+      <svg width="34" height="34" viewBox="0 0 40 40" aria-hidden="true">
+        <circle cx="20" cy="20" r="19" fill="var(--green-soft)"/>
+        <path d="M20 31 V19" stroke="var(--green)" stroke-width="2.4" stroke-linecap="round" fill="none"/>
+        <path d="M20 20 C12 20 9 14 10 9 C16 9 20 13 20 20Z" fill="var(--leaf)"/>
+        <path d="M20 22 C28 22 31 16 30 11 C24 11 20 15 20 22Z" fill="var(--band)"/>
+      </svg>
+      <b><span>마르페</span> 예약 관리</b>
+    </a>
+    <div class="adm-top" id="who" hidden>
+      <span id="whoEmail"></span>
+      <button class="btn ghost small" type="button" id="logout">로그아웃</button>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  <!-- 설정 안 됨 -->
+  <div class="panel login" id="noConfig" hidden>
+    <h2 style="font-size:24px">연결 설정이 필요해요</h2>
+    <p class="sub">config.js 파일에 Supabase anon public 키를 넣어 주세요.</p>
+  </div>
+
+  <!-- 로그인 -->
+  <form class="panel login" id="loginForm" hidden novalidate>
+    <span class="pill">상담사 전용</span>
+    <h2 style="font-size:26px;margin:8px 0 16px">로그인</h2>
+    <div class="field"><label for="l-email">이메일</label><input id="l-email" type="email" autocomplete="username" required></div>
+    <div class="field"><label for="l-pw">비밀번호</label><input id="l-pw" type="password" autocomplete="current-password" required></div>
+    <button class="btn primary" type="submit" id="loginBtn">로그인</button>
+    <button class="btn ghost small" type="button" id="forgot" style="margin-left:6px">비밀번호를 잊었어요</button>
+    <div class="err" id="loginErr" hidden></div>
+  </form>
+
+  <!-- 새 비밀번호 (초대·재설정 메일 링크로 들어왔을 때) -->
+  <form class="panel login" id="pwForm" hidden novalidate>
+    <h2 style="font-size:24px;margin-bottom:12px">새 비밀번호 정하기</h2>
+    <div class="field"><label for="p-new">새 비밀번호 (8자 이상)</label><input id="p-new" type="password" autocomplete="new-password" minlength="8"></div>
+    <button class="btn primary" type="submit">저장하고 시작하기</button>
+    <div class="err" id="pwErr" hidden></div>
+  </form>
+
+  <!-- 상담사 아님 -->
+  <div class="panel login" id="notStaff" hidden>
+    <h2 style="font-size:24px">등록된 상담사가 아니에요</h2>
+    <p class="sub">센터장에게 상담사 명단 등록을 요청해 주세요.</p>
+  </div>
+
+  <!-- 관리 화면 -->
+  <section class="block" id="admin" hidden style="border:0;padding-top:28px">
+    <div class="admin-head">
+      <div>
+        <h2>예약 관리</h2>
+        <p class="sub">홈페이지 신청은 ‘대기’로 들어와요. 확인 전화 후 ‘확정’으로 바꿔 주세요.</p>
+      </div>
+      <div class="stats" id="stats"></div>
+    </div>
+    <div class="adm-grid">
+      <div class="panel">
+        <div class="weeknav">
+          <button class="btn ghost small" type="button" id="wPrev" aria-label="이전 주">‹ 이전</button>
+          <strong id="wLabel"></strong>
+          <button class="btn ghost small" type="button" id="wNext" aria-label="다음 주">다음 ›</button>
+          <button class="btn ghost small" type="button" id="wToday">이번 주</button>
+          <button class="btn ghost small" type="button" id="reload">새로고침</button>
+        </div>
+        <div id="week"><p class="empty">예약을 불러오는 중…</p></div>
+        <div class="sharebox">
+          <h3 style="font-size:18px">카톡으로 예약현황 공유</h3>
+          <p class="hint">복사해서 상담사 단톡방에 붙여 넣으세요.</p>
+          <label class="switch"><input type="checkbox" id="mask" checked> 이름 가리기 (김*수)</label>
+          <div class="cta" style="margin-top:6px">
+            <button class="btn primary small" type="button" id="shareToday">오늘 일정 복사</button>
+            <button class="btn ghost small" type="button" id="shareTomorrow">내일 일정 복사</button>
+            <button class="btn ghost small" type="button" id="shareWeek">이 주 일정 복사</button>
+          </div>
+          <textarea class="copyhelp" id="shareHelp" readonly hidden aria-label="복사할 예약현황"></textarea>
+        </div>
+      </div>
+      <div style="display:grid;gap:20px">
+        <form class="panel" id="addForm" novalidate>
+          <h3 style="font-size:18px;margin-bottom:12px">예약 직접 등록 <small style="color:var(--muted);font-size:14px">(카톡·전화로 받은 예약)</small></h3>
+          <div class="row2">
+            <div class="field"><label for="a-name">이름</label><input id="a-name" maxlength="40" required></div>
+            <div class="field"><label for="a-phone">연락처</label><input id="a-phone" inputmode="tel" maxlength="30"></div>
+          </div>
+          <div class="row2">
+            <div class="field"><label for="a-who">대상</label><select id="a-who"></select></div>
+            <div class="field"><label for="a-area">분야</label><select id="a-area"></select></div>
+          </div>
+          <div class="row2">
+            <div class="field"><label for="a-date">날짜</label><input id="a-date" type="date" required></div>
+            <div class="field"><label for="a-time">시간</label><select id="a-time"></select></div>
+          </div>
+          <div class="row2">
+            <div class="field"><label for="a-status">상태</label><select id="a-status"></select></div>
+            <div class="field"><label for="a-memo">메모</label><input id="a-memo" maxlength="300" placeholder="첫 상담 등"></div>
+          </div>
+          <div class="warnbox" id="addWarn" hidden></div>
+          <button class="btn primary" type="submit" id="addBtn">등록하기</button>
+        </form>
+        <form class="panel" id="setForm" novalidate>
+          <h3 style="font-size:18px;margin-bottom:6px">카카오톡 채널 주소</h3>
+          <p class="hint" style="margin-bottom:10px">카카오톡 채널 관리자센터의 채팅 링크(예: http://pf.kakao.com/_xxxx/chat)를 넣으면, 홈페이지의 ‘카카오톡으로 보내기’ 버튼이 이 주소로 연결됩니다.</p>
+          <div class="field"><label for="s-kakao">채널 채팅 링크</label><input id="s-kakao" type="url" placeholder="https://pf.kakao.com/_xxxxx/chat"></div>
+          <button class="btn ghost" type="submit">저장</button>
+        </form>
+      </div>
+    </div>
+  </section>
+</main>
+<div class="toast" id="toast" role="status" hidden></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="config.js"></script>
+<script src="common.js"></script>
+<script>
+(function(){
+const M = window.MARPE, $ = s => document.querySelector(s);
+const T = "marpe_counseling_bookings";
+// 초대·재설정 메일 링크로 들어왔는지 (클라이언트가 주소를 지우기 전에 확인)
+const needPw = /type=(invite|recovery)/.test(location.hash);
+const sb = M.client();
+const S = { bookings:[], weekStart:null, timer:null };
+const views = ["noConfig","loginForm","pwForm","notStaff","admin"];
+function show(id){ views.forEach(v=>$("#"+v).hidden = v!==id); }
+
+if(!sb){ show("noConfig"); return; }
+
+/* ---------- 로그인 ---------- */
+$("#loginForm").addEventListener("submit", async e=>{
+  e.preventDefault();
+  const btn=$("#loginBtn"); btn.disabled=true;
+  const { error } = await sb.auth.signInWithPassword({ email:$("#l-email").value.trim(), password:$("#l-pw").value });
+  btn.disabled=false;
+  if(error){ const x=$("#loginErr"); x.textContent="이메일 또는 비밀번호가 맞지 않아요."; x.hidden=false; }
+});
+$("#forgot").addEventListener("click", async ()=>{
+  const email=$("#l-email").value.trim();
+  if(!email){ M.toast("이메일을 먼저 적어 주세요."); return; }
+  const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: location.origin + location.pathname });
+  M.toast(error ? "메일을 보내지 못했어요. 잠시 후 다시 해 주세요." : "비밀번호 재설정 메일을 보냈어요.");
+});
+$("#pwForm").addEventListener("submit", async e=>{
+  e.preventDefault();
+  const pw=$("#p-new").value;
+  if(pw.length<8){ const x=$("#pwErr"); x.textContent="8자 이상으로 정해 주세요."; x.hidden=false; return; }
+  const { error } = await sb.auth.updateUser({ password: pw });
+  if(error){ const x=$("#pwErr"); x.textContent="저장하지 못했어요: "+error.message; x.hidden=false; return; }
+  S.pwSaved=true; M.toast("비밀번호를 저장했어요."); start();
+});
+$("#logout").addEventListener("click", async ()=>{ await sb.auth.signOut(); location.reload(); });
+
+async function route(session){
+  if(!session){ $("#who").hidden=true; show("loginForm"); return; }
+  $("#whoEmail").textContent=session.user.email; $("#who").hidden=false;
+  if((needPw||S.recovery) && !S.pwSaved){ show("pwForm"); return; }
+  start();
+}
+async function start(){
+  const { data:isStaff, error } = await sb.rpc("marpe_counseling_is_staff");
+  if(error || !isStaff){ show("notStaff"); return; }
+  show("admin"); setupForms(); await Promise.all([load(), loadSettings()]);
+  clearInterval(S.timer); S.timer=setInterval(load, 30000);
+}
+sb.auth.getSession().then(({data})=>route(data.session));
+sb.auth.onAuthStateChange((ev, session)=>{ if(ev==="PASSWORD_RECOVERY") S.recovery=true; if(ev==="SIGNED_IN"||ev==="SIGNED_OUT"||ev==="PASSWORD_RECOVERY") route(session); });
+
+/* ---------- 관리 ---------- */
+function mondayOf(d){ const x=new Date(d); x.setHours(0,0,0,0); x.setDate(x.getDate()-((x.getDay()+6)%7)); return x; }
+S.weekStart = mondayOf(new Date());
+function weekDates(){ const out=[]; for(let i=0;i<6;i++){ const d=new Date(S.weekStart); d.setDate(d.getDate()+i); out.push(M.ymd(d)); } return out; }
+const norm=rows=>(rows||[]).map(r=>Object.assign({},r,{date:r.booking_date,time:r.booking_time}));
+const byTime=(a,b)=>(a.date+a.time).localeCompare(b.date+b.time);
+function opts(sel, items){ sel.innerHTML=items.map(v=>'<option value="'+v+'">'+v+'</option>').join(""); }
+
+let formsReady=false;
+function setupForms(){
+  if(formsReady) return; formsReady=true;
+  opts($("#a-who"),M.WHO); $("#a-who").value="성인";
+  opts($("#a-area"),M.AREAS); opts($("#a-status"),M.STATUSES); $("#a-status").value="확정";
+  const t=new Date(); t.setDate(t.getDate()+1); if(t.getDay()===0) t.setDate(t.getDate()+1);
+  $("#a-date").value=M.ymd(t); fillTimeSelect();
+}
+function fillTimeSelect(){ const v=$("#a-date").value; opts($("#a-time"), v?M.hoursFor(M.parse(v)).map(M.hm):[]); checkClash(); }
+function checkClash(){
+  const date=$("#a-date").value, time=$("#a-time").value, w=$("#addWarn");
+  if(date && M.parse(date).getDay()===0){ w.textContent="일요일은 휴무일이에요."; w.hidden=false; return; }
+  const c=S.bookings.find(b=>b.date===date&&b.time===time&&b.status!=="취소");
+  if(c){ w.textContent="이 시간에 이미 "+M.mask(c.name)+"님 예약("+c.status+")이 있어요. 그래도 등록할 수 있습니다."; w.hidden=false; }
+  else w.hidden=true;
+}
+$("#a-date").addEventListener("change",fillTimeSelect);
+$("#a-time").addEventListener("change",checkClash);
+
+async function load(){
+  const from=new Date(S.weekStart); from.setDate(from.getDate()-35);
+  const to=new Date(S.weekStart); to.setDate(to.getDate()+70);
+  const { data, error } = await sb.from(T).select("*").gte("booking_date",M.ymd(from)).lte("booking_date",M.ymd(to)).order("booking_date").order("booking_time");
+  if(error){ $("#week").innerHTML='<p class="empty">예약을 불러오지 못했어요. 새로고침을 눌러 주세요.</p>'; return; }
+  S.bookings=norm(data); renderWeek(); renderStats(); checkClash();
+}
+async function loadSettings(){
+  const { data } = await sb.from("marpe_counseling_settings").select("key,value");
+  (data||[]).forEach(r=>{ if(r.key==="kakao_url") $("#s-kakao").value=r.value||""; });
+}
+function renderStats(){
+  const today=M.ymd(new Date());
+  const live=S.bookings.filter(b=>b.status!=="취소");
+  const c={ "오늘":live.filter(b=>b.date===today).length,
+    "확인 대기":live.filter(b=>b.date>=today&&b.status==="대기").length,
+    "앞으로 확정":live.filter(b=>b.date>=today&&b.status==="확정").length };
+  $("#stats").innerHTML=Object.entries(c).map(([k,v])=>'<div class="stat">'+k+'<b>'+v+'</b></div>').join("");
+}
+function renderWeek(){
+  const dates=weekDates(), today=M.ymd(new Date());
+  $("#wLabel").textContent=M.shortDate(dates[0])+" – "+M.shortDate(dates[5]);
+  const wrap=$("#week"); wrap.innerHTML="";
+  dates.forEach(ds=>{
+    const blk=document.createElement("div"); blk.className="dayblock";
+    const h=document.createElement("h4"); h.textContent=M.korDate(ds)+(ds===today?" · 오늘":""); if(ds===today) h.className="today"; blk.appendChild(h);
+    const list=S.bookings.filter(b=>b.date===ds).sort(byTime);
+    if(!list.length){ const p=document.createElement("p"); p.className="empty"; p.textContent="예약 없음"; blk.appendChild(p); }
+    list.forEach(b=>{
+      const row=document.createElement("div"); row.className="bk st-"+b.status;
+      const t=document.createElement("div"); t.className="t"; t.textContent=b.time;
+      const w=document.createElement("div"); w.className="who2";
+      const nm=document.createElement("b"); nm.textContent=b.name+(b.source==="홈페이지"?" · 홈페이지 신청":"");
+      const sm=document.createElement("small"); sm.textContent=[b.who,b.area,b.phone,b.memo].filter(Boolean).join(" · ");
+      w.append(nm,sm);
+      const act=document.createElement("div"); act.className="act";
+      const sel=document.createElement("select"); sel.setAttribute("aria-label",b.name+" 예약 상태");
+      opts(sel,M.STATUSES); sel.value=b.status; sel.onchange=()=>setStatus(b,sel.value);
+      const del=document.createElement("button"); del.type="button"; del.className="del"; del.textContent="삭제";
+      del.onclick=()=>{ if(del.classList.contains("arm")) removeBooking(b); else { del.classList.add("arm"); del.textContent="정말 삭제"; setTimeout(()=>{ del.classList.remove("arm"); del.textContent="삭제"; },3000); } };
+      act.append(sel,del); row.append(t,w,act); blk.appendChild(row);
+    });
+    wrap.appendChild(blk);
+  });
+}
+function shareText(dates, title){
+  const m=$("#mask").checked; const lines=["[마르페 예약현황] "+title];
+  dates.forEach(ds=>{
+    const list=S.bookings.filter(b=>b.date===ds&&b.status!=="취소").sort(byTime);
+    if(dates.length>1){ if(!list.length) return; lines.push("","■ "+M.shortDate(ds)); }
+    list.forEach(b=>lines.push(b.time+"  "+(m?M.mask(b.name):b.name)+" · "+b.who+" "+b.area+" · "+b.status));
+  });
+  if(lines.length===1) lines.push("예약 없음");
+  return lines.join("\n");
+}
+async function shareDay(offset){
+  const d=new Date(); d.setDate(d.getDate()+offset); const s=M.ymd(d);
+  const { data } = await sb.from(T).select("*").eq("booking_date",s);
+  const keep=S.bookings.filter(b=>b.date!==s); S.bookings=keep.concat(norm(data));
+  M.copy(shareText([s], M.shortDate(s)), $("#shareHelp"));
+}
+$("#shareToday").onclick=()=>shareDay(0);
+$("#shareTomorrow").onclick=()=>shareDay(1);
+$("#shareWeek").onclick=()=>{ const d=weekDates(); M.copy(shareText(d, M.shortDate(d[0])+"~"+M.shortDate(d[5])), $("#shareHelp")); };
+$("#wPrev").onclick=()=>{ S.weekStart.setDate(S.weekStart.getDate()-7); load(); renderWeek(); };
+$("#wNext").onclick=()=>{ S.weekStart.setDate(S.weekStart.getDate()+7); load(); renderWeek(); };
+$("#wToday").onclick=()=>{ S.weekStart=mondayOf(new Date()); load(); };
+$("#reload").onclick=()=>{ load(); M.toast("새로 불러왔어요."); };
+
+function fail(error){ M.toast("저장하지 못했어요: "+(error&&error.message||"잠시 후 다시 해 주세요.")); }
+async function setStatus(b,status){
+  const { error } = await sb.from(T).update({ status, updated_at:new Date().toISOString() }).eq("id",b.id);
+  if(error){ fail(error); return; }
+  M.toast(b.name+"님 예약을 ‘"+status+"’(으)로 바꿨어요."); load();
+}
+async function removeBooking(b){
+  const { error } = await sb.from(T).delete().eq("id",b.id);
+  if(error){ fail(error); return; }
+  M.toast("예약을 삭제했어요."); load();
+}
+$("#addForm").addEventListener("submit", async e=>{
+  e.preventDefault();
+  const name=$("#a-name").value.trim(), date=$("#a-date").value, time=$("#a-time").value;
+  if(!name||!date||!time){ M.toast("이름, 날짜, 시간을 입력해 주세요."); return; }
+  const row={ name, phone:$("#a-phone").value.trim(), who:$("#a-who").value, area:$("#a-area").value,
+    booking_date:date, booking_time:time, status:$("#a-status").value, memo:$("#a-memo").value.trim(), source:"관리자" };
+  $("#addBtn").disabled=true;
+  const { error } = await sb.from(T).insert(row);
+  $("#addBtn").disabled=false;
+  if(error){ fail(error); return; }
+  M.toast(name+"님 "+M.shortDate(date)+" "+time+" 예약을 등록했어요.");
+  ["#a-name","#a-phone","#a-memo"].forEach(s=>$(s).value="");
+  S.weekStart=mondayOf(M.parse(date)); load();
+});
+$("#setForm").addEventListener("submit", async e=>{
+  e.preventDefault(); const v=$("#s-kakao").value.trim();
+  if(v && !/^https?:\/\//.test(v)){ M.toast("http:// 또는 https:// 로 시작하는 주소를 넣어 주세요."); return; }
+  const { error } = await sb.from("marpe_counseling_settings").upsert({ key:"kakao_url", value:v });
+  if(error){ fail(error); return; }
+  M.toast("카카오톡 링크를 저장했어요.");
+});
+})();
+</script>
+</body>
+</html>
